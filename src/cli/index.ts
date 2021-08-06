@@ -120,6 +120,7 @@ const glob = async (
 const confirm = async (message: string): Promise<boolean> => {
   const result = await inquirer.prompt([
     {
+      default: false,
       message,
       name: "ok",
       type: "confirm",
@@ -209,9 +210,9 @@ const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
       ? new RegExp(pattern, "i")
       : new RegExp(pattern);
 
-    const exists = paths.some((path) => regexp.test(basename(path)));
+    const matches = paths.filter((path) => regexp.test(basename(path)));
 
-    if (!exists) {
+    if (!matches.length) {
       error("The pattern does not match any paths");
 
       continue;
@@ -230,7 +231,7 @@ const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
         .trim()
     );
 
-    const renames: IRename[] = paths.map((path) => ({
+    const renames: IRename[] = matches.map((path) => ({
       from: path,
       to: join(dirname(path), basename(path).replace(regexp, replacement)),
     }));
