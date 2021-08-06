@@ -1,0 +1,68 @@
+{
+  "name": "rename-i",
+  "bin": {
+    "rename-i": "dist/index.js"
+  },
+  "version": "0.0.1",
+  "description": "",
+  "engines": {
+    "node": "^16.0.0"
+  },
+  "exports": "./dist/index.js",
+  "files": [
+    "dist/**/*",
+    "LICENSE.txt"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "fix": "run-p -cs fix:js fix:json fix:ts",
+    "fix:js": "eslint --ignore-path .gitignore --ext .js --ext .cjs --fix .",
+    "fix:json": "prettier --write \"**/*.json\"",
+    "fix:ts": "tslint --fix --format verbose --project .",
+    "lint": "run-p -cs lint:js lint:json lint:ts",
+    "lint:js": "eslint --ignore-path .gitignore --ext .js --ext .cjs .",
+    "lint:json": "prettier -l \"**/*.json\"",
+    "lint:ts": "tslint --format verbose --project .",
+    "prebuild": "rimraf dist",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run validate",
+    "preversion": "npm run validate",
+    "validate": "npm run lint && npm run test",
+    "test": "jest"
+  },
+  "author": "ooxif",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "globby": "^12.0.0",
+    "inquirer": "^8.1.2",
+    "inquirer-fuzzy-path": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/chalk": "^2.2.0",
+    "@types/globby": "^9.1.0",
+    "@types/inquirer": "^7.3.3",
+    "@types/inquirer-fuzzy-path": "^2.3.1",
+    "@types/jest": "^26.0.24",
+    "eslint": "^7.32.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-prettier": "^3.4.0",
+    "jest": "^27.0.6",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.3.2",
+    "rimraf": "^3.0.2",
+    "ts-jest": "^27.0.4",
+    "ts-node": "^10.1.0",
+    "tslint": "^5.20.1",
+    "tslint-config-prettier": "^1.18.0",
+    "tslint-eslint-rules": "^5.4.0",
+    "tslint-plugin-prettier": "^2.3.0",
+    "typescript": "^3.9.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ooxif/node-rename-i.git"
+  },
+  "type": "module",
+  "types": "dist/index.d.ts"
+}
