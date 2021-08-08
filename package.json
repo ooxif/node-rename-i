@@ -1,9 +1,9 @@
 {
   "name": "rename-i",
   "bin": {
-    "rename-i": "dist/index.js"
+    "rename-i": "dist/cli/index.js"
   },
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "",
   "engines": {
     "node": "^16.0.0"
@@ -21,7 +21,7 @@
     "lint": "run-p -cs lint:js lint:json",
     "lint:js": "eslint --ignore-path .gitignore --ext .cjs,.js,.ts .",
     "lint:json": "prettier -l \"**/*.json\"",
-    "prebuild": "rimraf dist",
+    "prebuild": "node scripts/prebuild.cjs && rimraf dist",
     "prepare": "npm run build",
     "prepublishOnly": "npm run validate",
     "preversion": "npm run validate",

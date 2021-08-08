@@ -18,8 +18,11 @@ import type { Question } from "inquirer";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
+import version from "../version.js";
+
 const argv = yargs(hideBin(process.argv))
   .scriptName("rename-i")
+  .version(version)
   .usage("Usage: $0 [DIRECTORY]")
   .epilog("Copyright (c) 2021 oo@xif.at")
   .example([

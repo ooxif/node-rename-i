@@ -21,6 +21,13 @@
   "plugins": ["@typescript-eslint", "jest"],
   "root": true,
   "rules": {
+    "node/no-missing-import": 0,
+    "node/no-unsupported-features/es-syntax": [
+      "error",
+      {
+        "ignores": ["modules"]
+      }
+    ],
     "node/shebang": 0
   }
 }
