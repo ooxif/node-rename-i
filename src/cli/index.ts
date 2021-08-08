@@ -286,7 +286,7 @@ const promptRenameRule = async (
   paths: string[],
   method: Method
 ): Promise<Rename[]> => {
-  let pattern = "";
+  let pattern = method === Method.NDigitsSequence ? ".*" : "";
   let replacement = "";
   let start = 1;
   let width = 0;
