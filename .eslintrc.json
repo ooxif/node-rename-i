@@ -8,7 +8,8 @@
   ],
   "env": {
     "es2021": true,
-    "jest": true
+    "jest": true,
+    "node": true
   },
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
@@ -18,5 +19,8 @@
     "ecmaVersion": 2021
   },
   "plugins": ["@typescript-eslint", "jest"],
-  "root": true
+  "root": true,
+  "rules": {
+    "node/shebang": 0
+  }
 }

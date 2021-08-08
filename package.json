@@ -3,7 +3,7 @@
   "bin": {
     "rename-i": "dist/index.js"
   },
-  "version": "0.0.4",
+  "version": "0.0.7",
   "description": "",
   "engines": {
     "node": "^16.0.0"
