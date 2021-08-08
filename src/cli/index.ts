@@ -1,6 +1,3 @@
-#!/usr/bin/env node
-
-/* tslint:disable no-implicit-dependencies */
 import { constants as fsConstants } from "node:fs";
 import {
   access,
@@ -9,24 +6,34 @@ import {
   rmdir,
   stat,
 } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join, normalize } from "node:path";
 import { cwd, exit } from "node:process";
-/* tslint:enable no-implicit-dependencies */
 
 import chalk from "chalk";
 import { globby } from "globby";
 import inquirer from "inquirer";
-import fuzzyPath from "inquirer-fuzzy-path";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
+
+const argv = yargs(hideBin(process.argv))
+  .usage("Usage: $0 [DIRECTORY]")
+  .epilog("Copyright (c) 2021 oo@xif.at")
+  .example([
+    ["$0", "Run in the current directory"],
+    [
+      "$0 path/to/dir",
+      "Run in the specified directory (relative to the current directory",
+    ],
+    ["$0 /path/to/dir", "Run in the specified directory"],
+  ])
+  .help().argv;
 
 enum Type {
   File = "file",
   Directory = "directory",
 }
 
-inquirer.registerPrompt("fuzzypath", fuzzyPath);
-
 const error = (message: string): void => {
-  // tslint:disable-next-line no-console
   console.error(`${chalk.red("ERROR")} ${message}`);
 };
 
@@ -34,50 +41,117 @@ class ExitError {
   public message?: string;
   public code: number;
 
-  constructor(message?: string, code: number = -1) {
+  constructor(message?: string, code = -1) {
     this.message = message;
     this.code = code;
   }
 }
 
-const promptTargetDir = async (baseDir: string): Promise<string> => {
-  let targetDir: string;
+const die = (message?: string, code = -1): void => {
+  throw new ExitError(message, code);
+};
 
+const confirm = async (message: string): Promise<boolean> => {
+  const result = await inquirer.prompt([
+    {
+      default: false,
+      message,
+      name: "ok",
+      type: "confirm",
+    },
+  ]);
+
+  return result.ok;
+};
+
+const input = async (
+  message: string,
+  longMessage?: string
+): Promise<string> => {
   do {
     const result = await inquirer.prompt([
       {
-        default: baseDir,
-        itemType: "directory",
-        message: "Target directory:",
-        name: "path",
-        rootPath: baseDir,
-        suggestOnly: true,
-        type: "fuzzypath",
+        message:
+          longMessage == null
+            ? `${message}:`
+            : `${message}:\n\n${longMessage}\n\nInput:`,
+        name: "value",
+        type: "input",
       },
     ]);
 
-    targetDir = result.path;
+    const { value } = result;
 
-    if (targetDir === "") {
-      error("Specify directory");
-
-      continue;
+    if (value !== "") {
+      return value;
     }
 
-    try {
-      await access(targetDir, fsConstants.R_OK);
+    error(`Input ${message.toLowerCase()}`);
+  } while (true); // eslint-disable-line no-constant-condition
+};
 
-      if ((await stat(targetDir)).isDirectory()) {
-        break;
-      }
+const checkDirectoryStat = async (path: string): Promise<boolean> => {
+  let message: string | null = null;
 
-      error(`${targetDir} is not a directory`);
-    } catch {
-      error(`Cannot access to ${targetDir}`);
+  try {
+    if (!(await stat(path)).isDirectory()) {
+      message = `${path} is not a directory`;
     }
-  } while (true);
+  } catch {
+    message = `${path} is not found`;
+  }
 
-  return targetDir;
+  if (message != null) {
+    error(message);
+
+    return false;
+  }
+
+  const [readable, writable] = await Promise.all([
+    access(path, fsConstants.R_OK)
+      .then(() => true)
+      .catch(() => false),
+    access(path, fsConstants.W_OK)
+      .then(() => true)
+      .catch(() => false),
+  ]);
+
+  if (!readable) {
+    message = writable
+      ? `${path} is not readable`
+      : `${path} is not readable/writable`;
+  } else if (!writable) {
+    message = `${path} is not writable`;
+  }
+
+  if (message != null) {
+    error(message);
+
+    return false;
+  }
+
+  return true;
+};
+
+const resolveBaseDirectory = async (
+  cwd: string,
+  dir?: string
+): Promise<string> => {
+  let target: string;
+
+  if (dir != null && dir !== "") {
+    target = isAbsolute(dir) ? dir : normalize(join(cwd, dir));
+  } else {
+    target = cwd;
+  }
+
+  if (!(await checkDirectoryStat(target))) {
+    die();
+  }
+
+  console.log(`Running in ${target}`);
+
+  return target;
 };
 
 const promptType = async (): Promise<Type> => {
@@ -117,45 +191,6 @@ const glob = async (
   return paths;
 };
 
-const confirm = async (message: string): Promise<boolean> => {
-  const result = await inquirer.prompt([
-    {
-      default: false,
-      message,
-      name: "ok",
-      type: "confirm",
-    },
-  ]);
-
-  return result.ok;
-};
-
-const input = async (
-  message: string,
-  longMessage?: string
-): Promise<string> => {
-  do {
-    const result = await inquirer.prompt([
-      {
-        message:
-          longMessage == null
-            ? `${message}:`
-            : `${message}:\n\n${longMessage}\n\nInput:`,
-        name: "tmp",
-        type: "input",
-      },
-    ]);
-
-    const value = result.tmp;
-
-    if (value !== "") {
-      return value;
-    }
-
-    error(`Input ${message.toLowerCase()}`);
-  } while (true);
-};
-
 const promptPaths = async (
   targetDir: string,
   type: Type
@@ -174,22 +209,21 @@ const promptPaths = async (
     }
 
     paths.forEach((path) => {
-      // tslint:disable-next-line no-console
       console.log(path);
     });
 
     if (await confirm("OK?")) {
       return paths;
     }
-  } while (true);
+  } while (true); // eslint-disable-line no-constant-condition
 };
 
-interface IRename {
+interface Rename {
   from: string;
   to: string;
 }
 
-const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
+const promptRenameRule = async (paths: string[]): Promise<Rename[]> => {
   do {
     const pattern = await input(
       "Regex pattern",
@@ -197,7 +231,6 @@ const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
     );
 
     try {
-      // tslint:disable-next-line no-unused-expression
       new RegExp(pattern);
     } catch (e) {
       error(e.message);
@@ -218,6 +251,14 @@ const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
       continue;
     }
 
+    matches.forEach((path) => {
+      console.log(path);
+    });
+
+    if (!(await confirm("OK?"))) {
+      continue;
+    }
+
     const replacement = await input(
       "Replacement",
       `
@@ -231,7 +272,7 @@ const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
         .trim()
     );
 
-    const renames: IRename[] = matches.map((path) => ({
+    const renames: Rename[] = matches.map((path) => ({
       from: path,
       to: join(dirname(path), basename(path).replace(regexp, replacement)),
     }));
@@ -262,9 +303,9 @@ const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
       continue;
     }
 
-    const overrides: IRename[] = (
+    const overrides: Rename[] = (
       await Promise.all(
-        renames.map(async (rename): Promise<IRename | null> => {
+        renames.map(async (rename): Promise<Rename | null> => {
           if (toBeRenamed.has(rename.to.toLowerCase())) {
             return null;
           }
@@ -278,7 +319,7 @@ const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
           }
         })
       )
-    ).filter((rename) => rename) as IRename[];
+    ).filter((rename) => rename) as Rename[];
 
     if (overrides.length) {
       overrides.forEach((rename) => {
@@ -289,24 +330,23 @@ const promptRenameRule = async (paths: string[]): Promise<IRename[]> => {
     }
 
     renames.forEach((rename) => {
-      // tslint:disable-next-line no-console
       console.log(`${rename.from} => ${basename(rename.to)}`);
     });
 
     if (await confirm("OK?")) {
       return renames;
     }
-  } while (true);
+  } while (true); // eslint-disable-line no-constant-condition
 };
 
-const renameAll = async (renames: IRename[]): Promise<void> => {
-  const dirs = new Map<string, IRename[]>();
+const renameAll = async (renames: Rename[]): Promise<void> => {
+  const dirs = new Map<string, Rename[]>();
 
   renames.forEach((rename) => {
     const dir = dirname(rename.from).toLowerCase();
 
     if (dirs.has(dir)) {
-      dirs.get(dir)!.push(rename);
+      dirs.get(dir)?.push(rename);
     } else {
       dirs.set(dir, [rename]);
     }
@@ -324,7 +364,7 @@ const renameAll = async (renames: IRename[]): Promise<void> => {
         return;
       }
 
-      const tmpRenames: IRename[] = [];
+      const tmpRenames: Rename[] = [];
 
       await Promise.allSettled(
         dirRenames.map(async (rename) => {
@@ -358,9 +398,9 @@ const renameAll = async (renames: IRename[]): Promise<void> => {
         );
       }
 
-      if (rmDir) {
+      if (rmDir && tmpDir != null) {
         try {
-          await rmdir(tmpDir!);
+          await rmdir(tmpDir);
         } catch (e) {
           error(`Failed to rmdir: ${tmpDir}`);
         }
@@ -369,9 +409,29 @@ const renameAll = async (renames: IRename[]): Promise<void> => {
   );
 };
 
+interface Args {
+  directory?: string;
+}
+
+const parseArgs = async (): Promise<Args> => {
+  const args = await argv;
+  if (!args._?.length) {
+    return {};
+  }
+
+  if (args._.length > 1) {
+    die("DIRECTORY argument does not take 2 or more directories");
+  }
+
+  return {
+    directory: String(args._[0]),
+  };
+};
+
 (async (): Promise<void> => {
+  const args = await parseArgs();
   const CWD = cwd();
-  const targetDir = await promptTargetDir(CWD);
+  const targetDir = await resolveBaseDirectory(CWD, args.directory);
   const type = await promptType();
   const paths = await promptPaths(targetDir, type);
   const renames = await promptRenameRule(paths);
